@@ -1,0 +1,17 @@
+---
+# =============================================================================
+# NAMESPACE
+# =============================================================================
+# Creates an isolated namespace for the Customer Success FTE application.
+# This provides resource isolation and makes management easier.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: customer-success-fte
+  labels:
+    app: customer-success-fte
+    environment: production
+    team: customer-support
+  annotations:
+    description: "Namespace for Customer Success FTE - AI-powered customer support automation"

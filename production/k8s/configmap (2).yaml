@@ -1,0 +1,82 @@
+---
+# =============================================================================
+# CONFIGMAP
+# =============================================================================
+# Non-sensitive configuration values for the Customer Success FTE application.
+# These are mounted as environment variables in the pods.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fte-config
+  namespace: customer-success-fte
+  labels:
+    app: customer-success-fte
+data:
+  # Application Configuration
+  APP_NAME: "customer-success-fte"
+  APP_ENV: "production"
+  APP_DEBUG: "false"
+  APP_LOG_LEVEL: "info"
+  
+  # Database Configuration
+  DB_HOST: "postgres-fte.postgres.svc.cluster.local"
+  DB_PORT: "5432"
+  DB_NAME: "crm_fte"
+  DB_USER: "postgres"
+  DB_POOL_MIN_SIZE: "5"
+  DB_POOL_MAX_SIZE: "20"
+  
+  # Kafka Configuration
+  KAFKA_BOOTSTRAP_SERVERS: "kafka-headless.kafka.svc.cluster.local:9092"
+  KAFKA_TOPIC_INCOMING: "fte.tickets.incoming"
+  KAFKA_TOPIC_OUTGOING: "fte.tickets.outgoing"
+  KAFKA_TOPIC_DLQ: "fte.dlq"
+  KAFKA_TOPIC_METRICS: "fte.metrics"
+  KAFKA_CONSUMER_GROUP: "fte-processor"
+  KAFKA_AUTO_OFFSET_RESET: "earliest"
+  
+  # API Configuration
+  API_HOST: "0.0.0.0"
+  API_PORT: "8000"
+  API_WORKERS: "4"
+  ALLOWED_ORIGINS: "https://support.company.com,https://app.company.com"
+  
+  # Gmail Configuration
+  GMAIL_PROJECT_ID: "company-fte-12345"
+  GMAIL_TOPIC_NAME: "gmail-notifications"
+  GMAIL_CREDENTIALS_PATH: "/app/secrets/gmail-credentials.json"
+  
+  # WhatsApp Configuration
+  TWILIO_WHATSAPP_NUMBER: "whatsapp:+14155238886"
+  WHATSAPP_MAX_LENGTH: "1600"
+  WHATSAPP_SEGMENT_LENGTH: "160"
+  
+  # Agent Configuration
+  AGENT_MODEL: "gpt-4o"
+  AGENT_TEMPERATURE: "0.7"
+  AGENT_MAX_TOKENS: "1024"
+  AGENT_TIMEOUT_SECONDS: "30"
+  
+  # Rate Limiting
+  RATE_LIMIT_REQUESTS: "100"
+  RATE_LIMIT_WINDOW_SECONDS: "60"
+  
+  # Retry Configuration
+  MAX_RETRIES: "3"
+  RETRY_BASE_DELAY: "1.0"
+  RETRY_MAX_DELAY: "30.0"
+  
+  # Health Check Configuration
+  HEALTH_CHECK_INTERVAL: "30"
+  READINESS_PROBE_PATH: "/ready"
+  LIVENESS_PROBE_PATH: "/live"
+  
+  # Metrics Configuration
+  METRICS_ENABLED: "true"
+  METRICS_PORT: "9090"
+  
+  # Feature Flags
+  FEATURE_VECTOR_SEARCH: "true"
+  FEATURE_SENTIMENT_ANALYSIS: "true"
+  FEATURE_AUTO_ESCALATION: "true"

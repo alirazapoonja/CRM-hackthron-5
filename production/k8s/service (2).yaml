@@ -1,0 +1,88 @@
+---
+# =============================================================================
+# API SERVICE
+# =============================================================================
+# Exposes the FastAPI application within the cluster.
+# Used by Ingress for external traffic and by other services internally.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: fte-api
+  namespace: customer-success-fte
+  labels:
+    app: customer-success-fte
+    component: api
+  annotations:
+    # For cloud provider load balancer (if using LoadBalancer type)
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    service.beta.kubernetes.io/aws-load-balancer-internal: "false"
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+      protocol: TCP
+  selector:
+    app: customer-success-fte
+    component: api
+  sessionAffinity: None
+
+---
+# =============================================================================
+# WORKER SERVICE (Headless for monitoring)
+# =============================================================================
+# Headless service for worker pods - used for monitoring and debugging.
+# Workers don't receive direct traffic; they consume from Kafka.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: fte-worker
+  namespace: customer-success-fte
+  labels:
+    app: customer-success-fte
+    component: worker
+spec:
+  type: ClusterIP
+  clusterIP: None  # Headless service
+  ports:
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+      protocol: TCP
+  selector:
+    app: customer-success-fte
+    component: worker
+
+---
+# =============================================================================
+# METRICS SERVICE (for Prometheus)
+# =============================================================================
+# Dedicated service for metrics scraping
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: fte-metrics
+  namespace: customer-success-fte
+  labels:
+    app: customer-success-fte
+    component: metrics
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+spec:
+  type: ClusterIP
+  ports:
+    - name: metrics
+      port: 9090
+      targetPort: 9090
+      protocol: TCP
+  selector:
+    app: customer-success-fte

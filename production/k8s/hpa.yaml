@@ -1,0 +1,213 @@
+---
+# =============================================================================
+# API HORIZONTAL POD AUTOSCALER (HPA)
+# =============================================================================
+# Automatically scales the API deployment based on:
+# - CPU utilization
+# - Memory utilization
+# - Custom metrics (requests per second via Prometheus)
+#
+# Scaling behavior:
+# - Scale up when CPU > 70% or Memory > 80%
+# - Scale down when CPU < 30% and Memory < 50%
+# - Minimum 2 pods for high availability
+# - Maximum 20 pods for cost control
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: fte-api-hpa
+  namespace: customer-success-fte
+  labels:
+    app: customer-success-fte
+    component: api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: fte-api
+  
+  # Replica bounds
+  minReplicas: 2  # High availability minimum
+  maxReplicas: 20  # Cost control maximum
+  
+  # Scaling behavior configuration
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60  # Wait 60s before scaling up again
+      policies:
+        - type: Percent
+          value: 100  # Double pods at most
+          periodSeconds: 60
+        - type: Pods
+          value: 4  # Max 4 pods per scaling event
+          periodSeconds: 60
+      selectPolicy: Max  # Use the policy that adds most pods
+    
+    scaleDown:
+      stabilizationWindowSeconds: 300  # Wait 5 minutes before scaling down
+      policies:
+        - type: Percent
+          value: 10  # Remove at most 10% at a time
+          periodSeconds: 60
+      selectPolicy: Min  # Use the policy that removes fewest pods
+  
+  # Metrics for scaling decisions
+  metrics:
+    # CPU utilization target
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    
+    # Memory utilization target
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+    
+    # Custom metric: Requests per second (via Prometheus Adapter)
+    - type: Pods
+      pods:
+        metric:
+          name: http_requests_per_second
+        target:
+          type: AverageValue
+          averageValue: "100"  # Scale when avg > 100 req/s per pod
+
+---
+# =============================================================================
+# WORKER HORIZONTAL POD AUTOSCALER (HPA)
+# =============================================================================
+# Automatically scales the worker deployment based on:
+# - Kafka consumer lag (primary metric)
+# - CPU utilization
+# - Memory utilization
+#
+# Scaling behavior:
+# - Scale up when Kafka lag > 1000 messages or CPU > 70%
+# - Scale down when Kafka lag < 100 and CPU < 30%
+# - Minimum 1 pod (can process messages with 1 worker)
+# - Maximum 10 pods (parallel processing limit)
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: fte-worker-hpa
+  namespace: customer-success-fte
+  labels:
+    app: customer-success-fte
+    component: worker
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: fte-worker
+  
+  # Replica bounds
+  minReplicas: 1  # At least 1 worker for 24/7 processing
+  maxReplicas: 10  # Max parallel processing
+  
+  # Scaling behavior configuration
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30  # Quick scale up for message bursts
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 30
+        - type: Pods
+          value: 2
+          periodSeconds: 30
+      selectPolicy: Max
+    
+    scaleDown:
+      stabilizationWindowSeconds: 300  # Wait 5 minutes to ensure backlog is cleared
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+      selectPolicy: Min
+  
+  # Metrics for scaling decisions
+  metrics:
+    # Kafka consumer lag (via Prometheus Adapter with Kafka Lag Exporter)
+    # This is the PRIMARY scaling metric for workers
+    - type: Pods
+      pods:
+        metric:
+          name: kafka_consumer_lag
+        target:
+          type: AverageValue
+          averageValue: "1000"  # Scale when avg lag > 1000 messages per pod
+    
+    # CPU utilization target
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    
+    # Memory utilization target
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+
+---
+# =============================================================================
+# KAFKA CONSUMER LAG METRIC (for HPA)
+# =============================================================================
+# This PodMonitor configures Prometheus to scrape Kafka lag metrics
+# which are then used by the HPA via Prometheus Adapter
+
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: fte-kafka-lag-monitor
+  namespace: customer-success-fte
+  labels:
+    app: customer-success-fte
+    release: prometheus  # Must match Prometheus selector
+spec:
+  selector:
+    matchLabels:
+      app: customer-success-fte
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+
+---
+# =============================================================================
+# PROMETHEUS ADAPTER CONFIG (for Custom Metrics)
+# =============================================================================
+# ConfigMap for Prometheus Adapter to expose custom metrics to HPA
+# This should be installed in the monitoring namespace
+
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   name: adapter-config
+#   namespace: monitoring
+# data:
+#   config.yaml: |
+#     rules:
+#       custom:
+#         - seriesQuery: 'kafka_consumer_lag{namespace!="",pod!=""}'
+#           resources:
+#             overrides:
+#               namespace: {resource: "namespace"}
+#               pod: {resource: "pod"}
+#           name:
+#             matches: "kafka_consumer_lag"
+#             as: "kafka_consumer_lag"
+#           metricsQuery: sum(rate(<<.Series>>{<<.LabelMatchers>>}[2m])) by (<<.GroupBy>>)
