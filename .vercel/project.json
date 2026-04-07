@@ -1,0 +1,11 @@
+{
+  "projectId": "prj_CRM-hackthron-5",
+  "orgId": "team_CRM-hackthron-5",
+  "settings": {
+    "installCommand": "pip install -r production/requirements.txt",
+    "buildCommand": null,
+    "devCommand": "python -m uvicorn production.api.main:app --reload",
+    "outputDirectory": null,
+    "framework": null
+  }
+}
